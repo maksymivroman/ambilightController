@@ -1,0 +1,1 @@
+# template-ESP8266-core
