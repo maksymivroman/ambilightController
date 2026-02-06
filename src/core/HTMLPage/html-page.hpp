@@ -34,6 +34,10 @@ const char index_html[] PROGMEM = R"rawliteral(
             margin-right: .25rem;
         }
 
+        .mt-l {
+            margin-top: 1.25rem;
+        }
+
         button {
             padding: 4px;
             min-width: 100px;
@@ -70,6 +74,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         .main {
             display: flex;
+            flex-flow: column;
             flex: 1;
             overflow: auto;
             padding: 1rem;
@@ -190,6 +195,27 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
         </div>
     </div>
+
+    <div class="mt-l">
+        <div class="flex-center mt-l">
+            <label for="ledFlowDirection" class="mr-m">LED Flow Direction</label>
+            <select class="control" style="padding: 0; font-size: .75rem; width: 120px;" id="ledFlowDirection">
+                <option value="0">TRBL</option>
+                <option value="1">RBLT</option>
+                <option value="2">BTLR</option>
+                <option value="3">LTRB</option>
+            </select>
+        </div>
+        <div class="flex-center mt-l">
+            <label class="item" for="ledCount">LED count</label>
+            <input type="number" min="1" class="control" id="ledCount">
+        </div>
+        <div class="flex-center mt-l">
+            <label class="item" for="saveLastState">Restore Last State After Reload</label>
+            <input type="checkbox" class="control" id="saveLastState">
+        </div>
+
+    </div>
 </div>
 <div class="footer">
     <span>%VERSION%</span>
@@ -206,9 +232,9 @@ const char index_html[] PROGMEM = R"rawliteral(
 
     const networkSelectCtrl = document.getElementById('networks');
 
-    const checkboxSettings = ['useHotspotSsid', 'clientWebAccess', 'enableOtaUpdate', 'loggerEnabled'];
-    const optionSettings = ['loggerLevel'];
-    const inputsSettings = ['wifiSsid', 'wifiPass', 'hotspotSsid'];
+    const checkboxSettings = ['useHotspotSsid', 'clientWebAccess', 'enableOtaUpdate', 'loggerEnabled', 'saveLastState'];
+    const optionSettings = ['loggerLevel', 'ledFlowDirection'];
+    const inputsSettings = ['wifiSsid', 'wifiPass', 'hotspotSsid', 'ledCount'];
 
     networkSelectCtrl.addEventListener('change', () => {
         document.getElementById('wifiSsid').value = networkSelectCtrl.value;

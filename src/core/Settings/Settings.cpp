@@ -76,7 +76,10 @@ void Settings::writeButtonEepromSettings(JsonVariant const &jsonSettings) {
     settings.enableOtaUpdate = jsonSettings["enableOtaUpdate"].as<bool>() | false;
     settings.loggerEnabled = jsonSettings["loggerEnabled"].as<bool>() | false;
     settings.useCustomHSsid = jsonSettings["useHotspotSsid"].as<bool>() | false;
+    settings.saveLastState = jsonSettings["saveLastState"].as<bool>() | false;
     settings.loggerLevel = jsonSettings["loggerLevel"].as<unsigned int>() | 0;
+    settings.ledCount = jsonSettings["ledCount"].as<unsigned int>() | 1;
+    settings.ledFlowDirection = static_cast<RGBDirection>(jsonSettings["ledFlowDirection"].as<RGBDirection>() | TRBL);
 
     settings.fwVersion = this->_eepromSettings.fwVersion;
 
@@ -109,8 +112,20 @@ bool Settings::loggerEnabled() const {
     return _eepromSettings.loggerEnabled | false;
 }
 
+bool Settings::saveLastState() const {
+    return _eepromSettings.saveLastState | false;
+}
+
+unsigned int Settings::ledCount() const {
+    return _eepromSettings.ledCount | 1;
+}
+
 LoggerLevel Settings::loggerLevel() const {
     return static_cast<LoggerLevel>(_eepromSettings.loggerLevel);
+}
+
+RGBDirection Settings::ledFlowDirection() const {
+    return static_cast<RGBDirection>(_eepromSettings.ledFlowDirection | TRBL);
 }
 
 char *Settings::customHotspotSsid() {
@@ -206,5 +221,9 @@ JsonSettings Settings::eepromSettingsObj() const {
     settings["wifiSsid"] = this->_eepromSettings.wifiSsid;
     settings["wifiPass"] = this->_eepromSettings.wifiPass;
     settings["hotspotSsid"] = this->_eepromSettings.hotspotSsid;
+    settings["saveLastState"] = this->_eepromSettings.saveLastState;
+    settings["ledCount"] = this->_eepromSettings.ledCount;
+    settings["ledFlowDirection"] = this->_eepromSettings.ledFlowDirection;
     return settings;
 }
+

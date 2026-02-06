@@ -11,10 +11,20 @@
 #include "core/HTMLPage/PageDataBuilder.h"
 #include "core/Http/Http.h"
 #include "core/HTMLPage/html-page.hpp"
+#include "core/HTMLPage/colorPicker-page.hpp"
 #include "core/OTAUpdate/OTAUpdate.h"
 #include "core/Trigger/Trigger.h"
+#include "core/RGB/RGB.hpp"
 
-Version deviceVersion(0, 0, 1, true);
+#include <FastLED.h>
+#define DATA_PIN 4
+#define COLOR_ORDER GRB
+
+volatile int ledsCount = 1;
+
+CRGB *LedStrip;
+
+Version deviceVersion(0, 0, 0, true);
 const byte pinA1 = 5;
 
 StartupMode deviceStartupMode = RUN;
@@ -22,13 +32,13 @@ StartupMode deviceStartupMode = RUN;
 Settings deviceSettings;
 AsyncWebServer server(80);
 NetworkService networkService;
-Trigger RestartTrigger;
+Trigger RestartTrigger, UpdateRGBTrigger, TestRGB, FadeOutRgbTrigger;
 
 OtaUpdate otaUpdate(&RestartTrigger);
 
 Logger logger(115200, 20);
 
-Task restartTask, checkConnectionTask;
+Task restartTask, checkConnectionTask, updateRGB, testRGB, fadeOutRGB;
 IntervalTask Main;
 
 void restart() {
@@ -41,6 +51,46 @@ void setStartupMode() {
     StartupMode mode = digitalRead(pinA1) ? SETUP : RUN;
     logger.log("[Init] Startup mode: ", mode);
     deviceStartupMode = mode;
+}
+
+uint32_t parseHexColor(const String& hex) {
+    if (hex.isEmpty()) return 0;
+    // Пропускаємо символ '#', якщо він є (індекс 1), інакше 0
+    int offset = (hex[0] == '#') ? 1 : 0;
+    return strtoul(hex.c_str() + offset, nullptr, 16);
+}
+
+void ledStripTest(unsigned int ledCount) {
+    logger.log("[STRIP TEST] Started. LED count: ", ledCount);
+    for (int whiteLed = 0; whiteLed < ledCount; whiteLed = whiteLed + 1) {
+        LedStrip[whiteLed] = CRGB::White;
+        FastLED.show();
+        delay(50);
+        LedStrip[whiteLed] = CRGB::Black;
+    }
+}
+
+void fadeOut(unsigned int ledCount) {
+    // Робимо цикл, щоб поступово зменшувати яскравість
+    // Достатньо близько 30-50 кроків, щоб повністю погасити навіть яскраві кольори
+    for (int i = 0; i < 40; i++) {
+
+        // fadeToBlackBy(масив, кількість, на_скільки_зменшити)
+        // 10 - це крок згасання (від 0 до 255).
+        // Чим менше число, тим плавніше згасання.
+        // Чим більше число, тим різкіше.
+        fadeToBlackBy(LedStrip, ledCount, 15);
+
+        FastLED.show();
+
+        // Затримка між кадрами анімації (в мілісекундах)
+        // Впливає на загальну тривалість згасання
+        delay(30);
+    }
+
+    // Гарантуємо, що в кінці все точно вимкнено (прибираємо залишкові тьмяні кольори)
+    FastLED.clear();
+    FastLED.show();
 }
 
 void setup() {
@@ -79,6 +129,10 @@ void setup() {
                             [](const String& ref){ return PageDataBuilder::pageDataByRef(ref);});
         });
 
+        server.on("/color", HTTP_GET, [](AsyncWebServerRequest *request) {
+            request->send_P(200, "text/html", colorPicker_html);
+        });
+
         server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
             auto data = deviceSettings.eepromSettingsObj();
             request->send(200, "application/json", Http::dataResponse("success", data));
@@ -98,6 +152,67 @@ void setup() {
             } else {
                 request->send(400, "application/json", Http::statusError("Failed to save, wrong data") );
             }
+        });
+
+
+        /**
+         * expected payload:
+         * {
+         *  top: string[]       //(rgb);
+         *  right: string[]     //(rgb);
+         *  bottom: string[]    //(rgb);
+         *  left: string[]      //(rgb);
+         * }
+         * */
+
+
+        logger.log("[Init RGB Strip]");
+        logger.log("[Init RGB Strip] LED COUNT: ", deviceSettings.ledCount());
+        LedStrip = new CRGB[deviceSettings.ledCount()];
+        logger.log("[Init RGB Strip] PIN: ", DATA_PIN);
+        FastLED.addLeds<WS2811, DATA_PIN, COLOR_ORDER>(LedStrip, deviceSettings.ledCount());
+//    FastLED.setBrightness(100);
+        FastLED.clear();
+        FastLED.show();
+        logger.log("[Init RGB Strip successful]");
+
+
+
+        auto *rgbHandler = new AsyncCallbackJsonWebHandler("/rgb",
+                                                        [](AsyncWebServerRequest *request, JsonVariant &json) {
+            if (json.is<JsonObject>()) {
+                JsonObject jsonObj = json.as<JsonObject>();
+                auto flowDirection = deviceSettings.ledFlowDirection();
+                auto sides = RgbFlowDirections.at(flowDirection);
+                int currentLedIndex = 0;
+                for (const char* side : sides) {
+                    JsonArray array = jsonObj[side];
+                    if (array.isNull()) continue; // Якщо сторони немає в JSON, пропускаємо
+
+                    for (String colorStr: array) {
+                        // Захист від переповнення буфера (якщо прийшло більше кольорів, ніж є діодів)
+                        if (currentLedIndex >= deviceSettings.ledCount()) break; //todo -> set NUM_LEDS from total colors received
+
+                        LedStrip[currentLedIndex] = parseHexColor(colorStr);
+
+                        currentLedIndex++;
+                    }
+                }
+                UpdateRGBTrigger.set();
+                request->send(200, "application/json", Http::statusOk("ok"));
+            } else {
+                request->send(400, "application/json", Http::statusError("wrong data") );
+            }
+        }, 8192);
+
+        server.on("/testRgb", HTTP_GET, [](AsyncWebServerRequest *request) {
+            TestRGB.set();
+            request->send(200, "application/json", Http::statusOk("Test RGB"));
+        });
+
+        server.on("/fadeOutRgb", HTTP_GET, [](AsyncWebServerRequest *request) {
+            FadeOutRgbTrigger.set();
+            request->send(200, "application/json", Http::statusOk("Fade Out RGB"));
         });
 
         server.on("/networks", HTTP_GET, [wiFiList](AsyncWebServerRequest *request) {
@@ -133,6 +248,7 @@ void setup() {
         }
 
         server.addHandler(handler);
+        server.addHandler(rgbHandler);
         server.begin();
     }
 
@@ -140,8 +256,22 @@ void setup() {
 }
 
 void loop() {
-    Main(1000, [](){
+    Main(200, [](){
         /**Place your code here, adjust interval*/
+        testRGB(TestRGB.get(), [](){
+            ledStripTest(deviceSettings.ledCount());
+            TestRGB.reset();
+        });
+    });
+
+    updateRGB(UpdateRGBTrigger.get(), [](){
+        FastLED.show();
+        UpdateRGBTrigger.reset();
+    });
+
+    fadeOutRGB(FadeOutRgbTrigger.get(), []() {
+        fadeOut(deviceSettings.ledCount());
+        FadeOutRgbTrigger.reset();
     });
 
     restartTask(RestartTrigger.get(), restart);

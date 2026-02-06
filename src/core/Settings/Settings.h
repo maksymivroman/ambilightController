@@ -31,6 +31,9 @@ public:
     bool loggerEnabled() const;
     bool clientWebAccessEnabled() const;
     bool otaUpdateOnClientMode() const;
+    bool saveLastState() const;
+    unsigned int ledCount() const;
+    RGBDirection ledFlowDirection() const;
     LoggerLevel loggerLevel() const;
 
     void handleVersionChange(unsigned int currentFWVersion, bool requireEEPROMFormat);
