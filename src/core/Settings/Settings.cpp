@@ -80,6 +80,7 @@ void Settings::writeButtonEepromSettings(JsonVariant const &jsonSettings) {
     settings.loggerLevel = jsonSettings["loggerLevel"].as<unsigned int>() | 0;
     settings.ledCount = jsonSettings["ledCount"].as<unsigned int>() | 1;
     settings.ledFlowDirection = static_cast<RGBDirection>(jsonSettings["ledFlowDirection"].as<RGBDirection>() | TRBL);
+    settings.wiFiMode = static_cast<CONTROLLER_WIFI_MODE>(jsonSettings["wiFiMode"].as<CONTROLLER_WIFI_MODE>() | AUTO);
 
     settings.fwVersion = this->_eepromSettings.fwVersion;
 
@@ -224,6 +225,10 @@ JsonSettings Settings::eepromSettingsObj() const {
     settings["saveLastState"] = this->_eepromSettings.saveLastState;
     settings["ledCount"] = this->_eepromSettings.ledCount;
     settings["ledFlowDirection"] = this->_eepromSettings.ledFlowDirection;
+    settings["wiFiMode"] = this->_eepromSettings.wiFiMode;
     return settings;
 }
 
+CONTROLLER_WIFI_MODE Settings::wiFiMode() const {
+    return this->_eepromSettings.wiFiMode;
+}

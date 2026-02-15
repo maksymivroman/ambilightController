@@ -35,6 +35,7 @@ public:
     unsigned int ledCount() const;
     RGBDirection ledFlowDirection() const;
     LoggerLevel loggerLevel() const;
+    CONTROLLER_WIFI_MODE wiFiMode() const;
 
     void handleVersionChange(unsigned int currentFWVersion, bool requireEEPROMFormat);
 

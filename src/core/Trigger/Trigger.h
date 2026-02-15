@@ -22,6 +22,11 @@ public:
         return _state != compare;
     }
 
+    Trigger& operator=(const bool &state) {
+        _state = state;
+        return *this;
+    }
+
     void set() {
         _state = true;
     }

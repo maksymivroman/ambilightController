@@ -17,29 +17,31 @@
 #include "core/RGB/RGB.hpp"
 
 #include <FastLED.h>
-#define DATA_PIN 4
+#define DATA_PIN 5
 #define COLOR_ORDER GRB
 
 volatile int ledsCount = 1;
 
 CRGB *LedStrip;
 
-Version deviceVersion(0, 0, 0, true);
-const byte pinA1 = 5;
+Version deviceVersion(0, 1, 0, true);
+const byte pinA1 = 4;
 
 StartupMode deviceStartupMode = RUN;
 
 Settings deviceSettings;
 AsyncWebServer server(80);
 NetworkService networkService;
-Trigger RestartTrigger, UpdateRGBTrigger, TestRGB, FadeOutRgbTrigger;
+Trigger RestartTrigger, UpdateRGBTrigger, TestRGB, FadeOutRgbTrigger, ControlButtonState;
 
 OtaUpdate otaUpdate(&RestartTrigger);
 
 Logger logger(115200, 20);
 
-Task restartTask, checkConnectionTask, updateRGB, testRGB, fadeOutRGB;
+Task restartTask, checkConnectionTask, updateRGB, testRGB, fadeOutRGB, toggleStripTask;
 IntervalTask Main;
+
+JsonObject stateObj;
 
 void restart() {
     optimistic_yield(1000);
@@ -48,7 +50,7 @@ void restart() {
 
 void setStartupMode() {
     /** define mode to start here */
-    StartupMode mode = digitalRead(pinA1) ? SETUP : RUN;
+    StartupMode mode = digitalRead(pinA1) ? RUN : SETUP;
     logger.log("[Init] Startup mode: ", mode);
     deviceStartupMode = mode;
 }
@@ -67,6 +69,30 @@ void ledStripTest(unsigned int ledCount) {
         FastLED.show();
         delay(50);
         LedStrip[whiteLed] = CRGB::Black;
+    }
+}
+
+void toggleStrip() {
+    if(ControlButtonState.get()) {
+        auto flowDirection = deviceSettings.ledFlowDirection();
+        auto sides = RgbFlowDirections.at(flowDirection);
+        int currentLedIndex = 0;
+        for (const char* side : sides) {
+            JsonArray array = stateObj[side];
+            if (array.isNull()) continue;
+
+            for (String colorStr: array) {
+                if (currentLedIndex >= deviceSettings.ledCount()) break; //todo -> set NUM_LEDS from total colors received
+
+                LedStrip[currentLedIndex] = parseHexColor(colorStr);
+
+                currentLedIndex++;
+            }
+        }
+        UpdateRGBTrigger.set();
+    } else {
+        FastLED.clear();
+        UpdateRGBTrigger.set();
     }
 }
 
@@ -115,6 +141,7 @@ void setup() {
     WiFiSettings wiFiConnDetails = deviceSettings.wifiSettings();
     [[maybe_unused]] EEPROMSettings deviceConfiguration = deviceSettings.eepromSettings();
     Networks wiFiList = networkService.wiFiList();
+    networkService.setWiFiMode(deviceSettings.wiFiMode());
 
     if (deviceStartupMode == SETUP) {
         const char *networkSsid = deviceSettings.customHotspotSsid();
@@ -181,12 +208,12 @@ void setup() {
         auto *rgbHandler = new AsyncCallbackJsonWebHandler("/rgb",
                                                         [](AsyncWebServerRequest *request, JsonVariant &json) {
             if (json.is<JsonObject>()) {
-                JsonObject jsonObj = json.as<JsonObject>();
+                stateObj = json.as<JsonObject>();
                 auto flowDirection = deviceSettings.ledFlowDirection();
                 auto sides = RgbFlowDirections.at(flowDirection);
                 int currentLedIndex = 0;
                 for (const char* side : sides) {
-                    JsonArray array = jsonObj[side];
+                    JsonArray array = stateObj[side];
                     if (array.isNull()) continue; // Якщо сторони немає в JSON, пропускаємо
 
                     for (String colorStr: array) {
@@ -262,6 +289,17 @@ void loop() {
             ledStripTest(deviceSettings.ledCount());
             TestRGB.reset();
         });
+
+
+    });
+
+    toggleStripTask(!digitalRead(pinA1),
+                    []() {
+                        ControlButtonState = !ControlButtonState.get();
+                        toggleStrip();
+                    },
+                    []() {
+
     });
 
     updateRGB(UpdateRGBTrigger.get(), [](){

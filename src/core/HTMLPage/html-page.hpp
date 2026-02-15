@@ -166,6 +166,14 @@ const char index_html[] PROGMEM = R"rawliteral(
 
                 <label class="item" for="wifiPass">PASSWORD</label>
                 <input id="wifiPass" type="password" class="item control">
+
+                <label class="item" for="wiFiMode">WiFi mode</label>
+                <select class="item control" id="wiFiMode">
+                    <option value="0">Auto</option>
+                    <option value="1">11B</option>
+                    <option value="2">11G</option>
+                    <option value="3">11N</option>
+                </select>
             </div>
 
             <div class="options-container">
@@ -233,7 +241,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     const networkSelectCtrl = document.getElementById('networks');
 
     const checkboxSettings = ['useHotspotSsid', 'clientWebAccess', 'enableOtaUpdate', 'loggerEnabled', 'saveLastState'];
-    const optionSettings = ['loggerLevel', 'ledFlowDirection'];
+    const optionSettings = ['loggerLevel', 'ledFlowDirection', 'wiFiMode'];
     const inputsSettings = ['wifiSsid', 'wifiPass', 'hotspotSsid', 'ledCount'];
 
     networkSelectCtrl.addEventListener('change', () => {

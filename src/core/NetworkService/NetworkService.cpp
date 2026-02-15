@@ -58,7 +58,7 @@ bool NetworkService::isAPMode() {
 }
 
 WiFiConnectionResult NetworkService::initWiFiConnection(const String &ssid, const String &pass, unsigned int retryAttempt) {
-    WiFi.mode(WIFI_STA);
+    this->initWirelessModule();
     wifi_station_set_hostname(DEVICE_HOSTNAME);
     WiFi.setAutoConnect(false);
     WiFi.begin(ssid, pass);
@@ -78,4 +78,20 @@ WiFiConnectionResult NetworkService::initWiFiConnection(const String &ssid, cons
         logger.logSerial("[Network] Connecting to ", ssid, " / ", pass);
     }
     return CONNECTED;
+}
+
+void NetworkService::setWiFiMode(CONTROLLER_WIFI_MODE mode) {
+    this->_mode = mode;
+}
+
+String NetworkService::getWiFIMode() const {
+    return this->_modeMap.at(WiFi.getPhyMode());
+}
+
+void NetworkService::initWirelessModule() {
+    WiFi.mode(WIFI_STA);
+    if (this->_mode) {
+        logger.log("[Network] Set WiFi mode to: ", this->_modeMap.at(static_cast<const WiFiPhyMode>(this->_mode)));
+        WiFi.setPhyMode(static_cast<WiFiPhyMode_t>(this->_mode));
+    }
 }

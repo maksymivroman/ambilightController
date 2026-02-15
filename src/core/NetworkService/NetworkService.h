@@ -3,8 +3,10 @@
 
 #include <Arduino.h>
 #include "core/Global/Global.hpp"
+#include <map>
 
 typedef enum WIFI_CONNECTION_RESULT {CONNECTED, CONNECTION_FAILED} WiFiConnectionResult;
+typedef std::map<WiFiPhyMode, String> WiFiModeMap;
 
 class NetworkService {
 
@@ -15,8 +17,18 @@ public:
     Networks wiFiList();
     bool isConnectedToWiFi();
     bool isAPMode();
+    void setWiFiMode(CONTROLLER_WIFI_MODE mode);
 
+    String getWiFIMode() const;
 private:
+    void initWirelessModule();
+
+    CONTROLLER_WIFI_MODE _mode = AUTO;
+    WiFiModeMap _modeMap = {
+            {WIFI_PHY_MODE_11B, "11B"},
+            {WIFI_PHY_MODE_11G, "11G"},
+            {WIFI_PHY_MODE_11N, "11N"}
+    };
     WiFiConnectionResult initWiFiConnection(const String& ssid, const String& pass, unsigned int retryAttempt = 0);
 };
 
