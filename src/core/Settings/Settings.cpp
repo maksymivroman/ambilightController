@@ -242,7 +242,7 @@ CONTROLLER_WIFI_MODE Settings::wiFiMode() const {
 }
 
 void Settings::saveCurrentState(LEDState &stateColors) {
-    File file = SPIFFS.open(FS_ADDITIONAL_DATA_PATH, "w");
+    File file = SPIFFS.open(FS_LED_STATE_PATH, "w");
     if (!file) {
         logger.log("[Settings][SPIFFS] Error opening file for writing. File not exist.");
         if (!stateColors.empty()) {
@@ -263,12 +263,12 @@ void Settings::saveCurrentState(LEDState &stateColors) {
 LEDState Settings::getLastState() {
     LEDState stateColors;
 
-    if (!SPIFFS.exists(FS_ADDITIONAL_DATA_PATH)) {
+    if (!SPIFFS.exists(FS_LED_STATE_PATH)) {
         logger.log("[Settings][SPIFFS] No saved colors found.");
         return stateColors;
     }
 
-    File file = SPIFFS.open(FS_ADDITIONAL_DATA_PATH, "r");
+    File file = SPIFFS.open(FS_LED_STATE_PATH, "r");
     if (!file) {
         logger.log("[Settings][SPIFFS] Failed to open file for reading!");
         return stateColors;
@@ -287,4 +287,35 @@ LEDState Settings::getLastState() {
     logger.log("[Settings][SPIFFS] Loaded colors from memory. ", numColors);
 
     return stateColors;
+}
+
+void Settings::saveCurrentBrightness(unsigned int brightness) {
+    File file = SPIFFS.open(FS_LED_BRIGHTNESS_PATH, "w");
+    if (!file) {
+        logger.log("[Settings][SPIFFS] Error opening brightness file for writing!");
+        logger.log("[Settings][SPIFFS] Creating new file...");
+        file.println();
+    } else {
+        file.write(reinterpret_cast<const char *>(&brightness), sizeof(unsigned int));
+    }
+
+    file.close();
+    logger.log("[Settings][SPIFFS] Brightness saved successfully.");
+}
+
+unsigned int Settings::getLastBrightness() {
+    unsigned int brightness = 255;
+
+    if (!SPIFFS.exists(FS_LED_BRIGHTNESS_PATH)) {
+        logger.log("[Settings][SPIFFS] Error opening brightness file for reading!");
+        return brightness;
+    }
+
+    File file = SPIFFS.open(FS_LED_BRIGHTNESS_PATH, "r");
+    if (!file) return brightness;
+
+    file.read(reinterpret_cast<uint8_t *>(&brightness), sizeof(unsigned int));
+    file.close();
+
+    return brightness;
 }

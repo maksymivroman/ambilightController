@@ -38,12 +38,14 @@ public:
     void testLEDStrip();
     void fadeOut();
     void setColors(LEDState state);
+    void setBrightness(unsigned int brightnessValue);
     void initColorState(LEDState state);
     void initColorState(HTMLColorCode plainColor);
     void fillWhite();
     void fillColor(HTMLColorCode colorCode);
     void clear(bool clearState = false);
     void restoreLastState();
+    unsigned int getBrightness();
 
     LEDState currentState() const;
 private:

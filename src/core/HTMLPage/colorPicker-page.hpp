@@ -134,6 +134,67 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
             height: 100%;
         }
 
+        /* Стилі для повзунка яскравості */
+        .slider-container {
+            margin-bottom: 15px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider-container label {
+            font-size: 0.9rem;
+            color: var(--accent);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 5px;
+        }
+
+        #brightness-val {
+            color: rgba(15,23,42,0.7);
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            margin: 0;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        /* Доріжка повзунка */
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 10px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 5px;
+            box-shadow: inset 0 1px 4px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        /* Сам повзунок (кружечок) */
+        input[type=range]::-webkit-slider-thumb {
+            height: 22px;
+            width: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -7px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+
+        input[type=range]::-webkit-slider-thumb:active {
+            transform: scale(1.15);
+        }
+
         @media (max-width: 480px) {
             .card {
                 width: 95vw;
@@ -165,6 +226,11 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         <button class="btn btn-off" id="btn-off">Вимкнути</button>
     </div>
 
+    <div class="slider-container">
+        <label for="brightness-slider">Яскравість: <span id="brightness-val">100%</span></label>
+        <input type="range" id="brightness-slider" min="1" max="255" value="255">
+    </div>
+
     <div class="canvas-container" id="canvasContainer">
         <canvas id="colorCanvas"></canvas>
     </div>
@@ -177,6 +243,7 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
     const CONTROLLER_URL = "/rgb";
     const OFF_URL = "/off";
     const STATE_URL = "/state";
+    const BRIGHTNESS_URL = "/brightness";
 
     // --- ЗМІННІ ---
     let SETTINGS = {};
@@ -227,6 +294,37 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         return h / 6;
     }
 
+    // --- ОБРОБКА ЯСКРАВОСТІ ---
+    const brightnessSlider = document.getElementById('brightness-slider');
+    const brightnessVal = document.getElementById('brightness-val');
+
+    // 1. Подія 'input' - спрацьовує під час перетягування (лише оновлює текст)
+    brightnessSlider.addEventListener('input', (e) => {
+        // Конвертуємо 0-255 у відсотки 0-100%
+        const percent = Math.round((e.target.value / 255) * 100);
+        brightnessVal.innerText = `${percent}%`;
+    });
+
+    // 2. Подія 'change' - спрацьовує лише коли палець ВІДПУСТИЛИ (відправляє запит)
+    brightnessSlider.addEventListener('change', (e) => {
+        const val = parseInt(e.target.value);
+
+        statusDiv.innerText = "⏳ Зміна яскравості...";
+        statusDiv.style.color = "var(--accent)";
+
+        const payload = JSON.stringify({ brightness: val });
+
+        httpRequest('POST', BRIGHTNESS_URL, payload, (err, res) => {
+            if (!err) {
+                statusDiv.innerText = "✅ Яскравість змінено";
+                statusDiv.style.color = "#065f46";
+            } else {
+                statusDiv.innerText = "❌ Помилка з'єднання";
+                statusDiv.style.color = "#991b1b";
+            }
+        });
+    });
+
     // --- ЗАВАНТАЖЕННЯ ---
     function getBaseSettings() {
         httpRequest('GET', STARTUP_MODE_URL, null, (error, data) => {
@@ -244,6 +342,14 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
                         for (let i = 0; i < len; i++) {
                             // Відновлюємо лінію з кольорів!
                             curvePoints[i] = hexToHueFraction(stateData.colors[i]);
+                        }
+
+                        if (stateData.brightness !== undefined) {
+                            const bVal = stateData.brightness;
+                            const brightnessSlider = document.getElementById('brightness-slider');
+                            const brightnessVal = document.getElementById('brightness-val');
+                            brightnessSlider.value = bVal;
+                            brightnessVal.innerText = `${Math.round((bVal / 255) * 100)}%`;
                         }
                     }
 

@@ -86,10 +86,13 @@ void setup() {
 
     LEDService.init(deviceSettings.ledCount());
     auto ledState = deviceSettings.getLastState();
+    auto ledBrightness = deviceSettings.getLastBrightness();
     if (deviceSettings.saveLastState() && !ledState.empty()) {
         LEDService.initColorState(ledState);
+        LEDService.setBrightness(ledBrightness);
     } else {
         LEDService.initColorState(GhostWhite);
+        LEDService.setBrightness(255);
     }
 
     if (deviceSettings.clientWebAccessEnabled() || deviceStartupMode == SETUP) {
@@ -163,6 +166,22 @@ void setup() {
             }
         }, 8192);
 
+        auto *brightnessHandler = new AsyncCallbackJsonWebHandler("/brightness", [](AsyncWebServerRequest *request, JsonVariant &json) {
+            if (json.is<JsonObject>()) {
+                JsonObject jsonObj = json.as<JsonObject>();
+                if (jsonObj.containsKey("brightness")) {
+                    unsigned int brightnessValue = jsonObj["brightness"].as<unsigned int>();
+                    LEDService.setBrightness(brightnessValue);
+                    deviceSettings.saveCurrentBrightness(brightnessValue);
+                    request->send(200, "application/json", Http::statusOk("ok"));
+                } else {
+                    request->send(400, "application/json", Http::statusError("Missing brightness data") );
+                }
+            } else {
+                request->send(400, "application/json", Http::statusError("Invalid JSON") );
+            }
+        }, 1024);
+
         server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request) {
             ControlButtonState.set();
             LEDService.clear();
@@ -172,6 +191,7 @@ void setup() {
         server.on("/state", HTTP_GET, [](AsyncWebServerRequest *request) {
             DynamicJsonDocument payloadDoc(2048);
             JsonArray colorsArray = payloadDoc.createNestedArray("colors");
+            payloadDoc["brightness"] = LEDService.getBrightness();
             for (const CRGB& color : LEDService.currentState()) {
                 char hexBuf[8];
                 snprintf(hexBuf, sizeof(hexBuf), "#%02x%02x%02x", color.r, color.g, color.b);
@@ -231,6 +251,7 @@ void setup() {
 
         server.addHandler(handler);
         server.addHandler(rgbHandler);
+        server.addHandler(brightnessHandler);
         server.begin();
     }
 

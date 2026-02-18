@@ -19,6 +19,8 @@ public:
 
     void saveCurrentState(LEDState &stateColors);
     LEDState getLastState();
+    void saveCurrentBrightness(unsigned int brightness);
+    unsigned int getLastBrightness();
 
     DataSaveResult saveSettings(String settings);
     DataSaveResult saveSettings(DynamicJsonDocument &json);

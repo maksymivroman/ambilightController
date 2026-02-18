@@ -26,6 +26,9 @@ static const char DEVICE_HOTSPOT_PASS[] = "12345678";
 static const char ESP_DEFAULT_SSID[] = "Ambilight Controller-";
 static const char FS_ADDITIONAL_DATA_PATH[] = "/data.json";
 
+static const char FS_LED_STATE_PATH[] = "/led_state.bin";
+static const char FS_LED_BRIGHTNESS_PATH[] = "/brightness.bin";
+
 enum CONTROLLER_WIFI_MODE {
     AUTO,
     MODE_11B = WiFiPhyMode::WIFI_PHY_MODE_11B,

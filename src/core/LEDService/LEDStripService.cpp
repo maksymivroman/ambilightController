@@ -92,3 +92,13 @@ void LEDStripService::initColorState(HTMLColorCode plainColor) {
 LEDState LEDStripService::currentState() const {
     return this->state;
 }
+
+void LEDStripService::setBrightness(unsigned int brightnessValue) {
+    logger.log("[LEDStripService] ", "Set Brightness Value to: ", brightnessValue);
+    FastLED.setBrightness(brightnessValue);
+    FastLED.show();
+}
+
+unsigned int LEDStripService::getBrightness() {
+    return FastLED.getBrightness();
+}
