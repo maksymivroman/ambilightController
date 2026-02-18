@@ -129,17 +129,25 @@ RGBDirection Settings::ledFlowDirection() const {
     return static_cast<RGBDirection>(_eepromSettings.ledFlowDirection | TRBL);
 }
 
+String Settings::name() const {
+    return this->_eepromSettings.hotspotSsid;
+}
+
 char *Settings::customHotspotSsid() {
+    const bool useCustomSsid = _eepromSettings.hotspotSsid[0] != '\0';
+    if (useCustomSsid && _eepromSettings.useCustomHSsid) {
+        return _eepromSettings.hotspotSsid;
+    }
+    return const_cast<char *>(this->defaultDeviceName());
+}
+
+char *Settings::defaultDeviceName() {
     String espDefaultName = ESP_DEFAULT_SSID;
 
     const String mac = WiFi.macAddress();
     espDefaultName += mac.substring(mac.length() - 6, mac.length());
     espDefaultName.replace(':', 'x');
 
-    const bool useCustomSsid = _eepromSettings.hotspotSsid[0] != '\0';
-    if (useCustomSsid && _eepromSettings.useCustomHSsid) {
-        return _eepromSettings.hotspotSsid;
-    }
     char *name = new char[espDefaultName.length() + 1];
     strcpy(name, espDefaultName.c_str());
 
@@ -231,4 +239,52 @@ JsonSettings Settings::eepromSettingsObj() const {
 
 CONTROLLER_WIFI_MODE Settings::wiFiMode() const {
     return this->_eepromSettings.wiFiMode;
+}
+
+void Settings::saveCurrentState(LEDState &stateColors) {
+    File file = SPIFFS.open(FS_ADDITIONAL_DATA_PATH, "w");
+    if (!file) {
+        logger.log("[Settings][SPIFFS] Error opening file for writing. File not exist.");
+        if (!stateColors.empty()) {
+            logger.log("[Settings][SPIFFS] Creating new file...");
+            file.println();
+        }
+    } else {
+        if (!stateColors.empty()) {
+            logger.log("[Settings][SPIFFS] Updating file...");
+            file.write(reinterpret_cast<uint8_t*>(stateColors.data()), stateColors.size() * sizeof(CRGB));
+        }
+    }
+
+    file.close();
+    logger.log("[Settings][SPIFFS] Colors saved successfully.");
+}
+
+LEDState Settings::getLastState() {
+    LEDState stateColors;
+
+    if (!SPIFFS.exists(FS_ADDITIONAL_DATA_PATH)) {
+        logger.log("[Settings][SPIFFS] No saved colors found.");
+        return stateColors;
+    }
+
+    File file = SPIFFS.open(FS_ADDITIONAL_DATA_PATH, "r");
+    if (!file) {
+        logger.log("[Settings][SPIFFS] Failed to open file for reading!");
+        return stateColors;
+    }
+
+    size_t fileSize = file.size();
+    size_t numColors = fileSize / sizeof(CRGB);
+
+    stateColors.resize(numColors);
+
+    if (numColors > 0) {
+        file.read(reinterpret_cast<uint8_t*>(stateColors.data()), fileSize);
+    }
+
+    file.close();
+    logger.log("[Settings][SPIFFS] Loaded colors from memory. ", numColors);
+
+    return stateColors;
 }

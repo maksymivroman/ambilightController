@@ -38,6 +38,26 @@ public:
         return responseToString(respObj);
     }
 
+    template<size_t T>
+    static String dataResponse(const String &message, const String &result) {
+        StaticJsonDocument<T> doc;
+        auto respObj = doc.template to<JsonObject>();
+        respObj["status"] = "OK";
+        respObj["message"] = message;
+        respObj["result"] = result;
+        return responseToString(respObj);
+    }
+
+    template<size_t T>
+    static String dataResponse(const String &message, const JsonObject &result) {
+        DynamicJsonDocument doc(T);
+        auto respObj = doc.template to<JsonObject>();
+        respObj["status"] = "OK";
+        respObj["message"] = message;
+        respObj["result"] = result;
+        return responseToString(respObj);
+    }
+
 private:
     static String responseToString(JsonObject &obj);
 

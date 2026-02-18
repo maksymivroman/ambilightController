@@ -149,6 +149,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         </div>
     </div>
     <div class="button-section">
+        <button type="button" class="save-btn" onclick="location.href='/color'">RGB Control</button>
         <button type="button" class="save-btn" onclick="saveSettings()">Save</button>
         <button type="button" onclick="restart()">Restart</button>
     </div>
@@ -206,7 +207,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
     <div class="mt-l">
         <div class="flex-center mt-l">
-            <label for="ledFlowDirection" class="mr-m">LED Flow Direction</label>
+            <label for="ledFlowDirection" class="mr-m">LED Flow Direction(TV setup)</label>
             <select class="control" style="padding: 0; font-size: .75rem; width: 120px;" id="ledFlowDirection">
                 <option value="0">TRBL</option>
                 <option value="1">RBLT</option>
@@ -217,6 +218,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div class="flex-center mt-l">
             <label class="item" for="ledCount">LED count</label>
             <input type="number" min="1" class="control" id="ledCount">
+            <button type="button" class="save-btn" onclick="location.href='/testRgb'">Test RGB Strip</button>
         </div>
         <div class="flex-center mt-l">
             <label class="item" for="saveLastState">Restore Last State After Reload</label>

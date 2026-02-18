@@ -17,6 +17,9 @@ public:
     void loadSettings();
     void loadAdditionalData();
 
+    void saveCurrentState(LEDState &stateColors);
+    LEDState getLastState();
+
     DataSaveResult saveSettings(String settings);
     DataSaveResult saveSettings(DynamicJsonDocument &json);
 
@@ -27,6 +30,8 @@ public:
     JsonSettings eepromSettingsObj() const;
 
     char *customHotspotSsid();
+    char *defaultDeviceName();
+    String name() const;
 
     bool loggerEnabled() const;
     bool clientWebAccessEnabled() const;

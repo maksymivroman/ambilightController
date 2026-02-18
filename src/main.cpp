@@ -14,17 +14,10 @@
 #include "core/HTMLPage/colorPicker-page.hpp"
 #include "core/OTAUpdate/OTAUpdate.h"
 #include "core/Trigger/Trigger.h"
-#include "core/RGB/RGB.hpp"
+#include "core/LEDService/LEDStripService.h"
+#include "core/ID/ID.h"
 
-#include <FastLED.h>
-#define DATA_PIN 5
-#define COLOR_ORDER GRB
-
-volatile int ledsCount = 1;
-
-CRGB *LedStrip;
-
-Version deviceVersion(0, 1, 0, true);
+Version deviceVersion(0, 2, 0, false);
 const byte pinA1 = 4;
 
 StartupMode deviceStartupMode = RUN;
@@ -38,10 +31,10 @@ OtaUpdate otaUpdate(&RestartTrigger);
 
 Logger logger(115200, 20);
 
-Task restartTask, checkConnectionTask, updateRGB, testRGB, fadeOutRGB, toggleStripTask;
+Task restartTask, checkConnectionTask, testRGB, fadeOutRGB, toggleStripTask(true);
 IntervalTask Main;
 
-JsonObject stateObj;
+LEDStripService LEDService;
 
 void restart() {
     optimistic_yield(1000);
@@ -62,63 +55,6 @@ uint32_t parseHexColor(const String& hex) {
     return strtoul(hex.c_str() + offset, nullptr, 16);
 }
 
-void ledStripTest(unsigned int ledCount) {
-    logger.log("[STRIP TEST] Started. LED count: ", ledCount);
-    for (int whiteLed = 0; whiteLed < ledCount; whiteLed = whiteLed + 1) {
-        LedStrip[whiteLed] = CRGB::White;
-        FastLED.show();
-        delay(50);
-        LedStrip[whiteLed] = CRGB::Black;
-    }
-}
-
-void toggleStrip() {
-    if(ControlButtonState.get()) {
-        auto flowDirection = deviceSettings.ledFlowDirection();
-        auto sides = RgbFlowDirections.at(flowDirection);
-        int currentLedIndex = 0;
-        for (const char* side : sides) {
-            JsonArray array = stateObj[side];
-            if (array.isNull()) continue;
-
-            for (String colorStr: array) {
-                if (currentLedIndex >= deviceSettings.ledCount()) break; //todo -> set NUM_LEDS from total colors received
-
-                LedStrip[currentLedIndex] = parseHexColor(colorStr);
-
-                currentLedIndex++;
-            }
-        }
-        UpdateRGBTrigger.set();
-    } else {
-        FastLED.clear();
-        UpdateRGBTrigger.set();
-    }
-}
-
-void fadeOut(unsigned int ledCount) {
-    // Робимо цикл, щоб поступово зменшувати яскравість
-    // Достатньо близько 30-50 кроків, щоб повністю погасити навіть яскраві кольори
-    for (int i = 0; i < 40; i++) {
-
-        // fadeToBlackBy(масив, кількість, на_скільки_зменшити)
-        // 10 - це крок згасання (від 0 до 255).
-        // Чим менше число, тим плавніше згасання.
-        // Чим більше число, тим різкіше.
-        fadeToBlackBy(LedStrip, ledCount, 15);
-
-        FastLED.show();
-
-        // Затримка між кадрами анімації (в мілісекундах)
-        // Впливає на загальну тривалість згасання
-        delay(30);
-    }
-
-    // Гарантуємо, що в кінці все точно вимкнено (прибираємо залишкові тьмяні кольори)
-    FastLED.clear();
-    FastLED.show();
-}
-
 void setup() {
     /** define IO pins here */
     pinMode(pinA1, INPUT);
@@ -134,9 +70,7 @@ void setup() {
     }
     setStartupMode();
 
-    /** if needed load data stored in FS
-    deviceSettings.loadData();
-     */
+    deviceSettings.loadAdditionalData();
 
     WiFiSettings wiFiConnDetails = deviceSettings.wifiSettings();
     [[maybe_unused]] EEPROMSettings deviceConfiguration = deviceSettings.eepromSettings();
@@ -148,6 +82,14 @@ void setup() {
         networkService.buttonHotspot(true, networkSsid, DEVICE_HOTSPOT_PASS);
     } else if (deviceStartupMode == RUN) {
         networkService.connectToWiFi(wiFiConnDetails);
+    }
+
+    LEDService.init(deviceSettings.ledCount());
+    auto ledState = deviceSettings.getLastState();
+    if (deviceSettings.saveLastState() && !ledState.empty()) {
+        LEDService.initColorState(ledState);
+    } else {
+        LEDService.initColorState(GhostWhite);
     }
 
     if (deviceSettings.clientWebAccessEnabled() || deviceStartupMode == SETUP) {
@@ -192,45 +134,51 @@ void setup() {
          * }
          * */
 
-
-        logger.log("[Init RGB Strip]");
-        logger.log("[Init RGB Strip] LED COUNT: ", deviceSettings.ledCount());
-        LedStrip = new CRGB[deviceSettings.ledCount()];
-        logger.log("[Init RGB Strip] PIN: ", DATA_PIN);
-        FastLED.addLeds<WS2811, DATA_PIN, COLOR_ORDER>(LedStrip, deviceSettings.ledCount());
-//    FastLED.setBrightness(100);
-        FastLED.clear();
-        FastLED.show();
-        logger.log("[Init RGB Strip successful]");
-
-
-
         auto *rgbHandler = new AsyncCallbackJsonWebHandler("/rgb",
                                                         [](AsyncWebServerRequest *request, JsonVariant &json) {
             if (json.is<JsonObject>()) {
-                stateObj = json.as<JsonObject>();
+
+                JsonObject jsonObj = json.as<JsonObject>();
                 auto flowDirection = deviceSettings.ledFlowDirection();
-                auto sides = RgbFlowDirections.at(flowDirection);
+                auto sides = &RgbFlowDirections.at(flowDirection);
+                LEDState stateColors;
+                stateColors.clear();
+                stateColors.reserve(deviceSettings.ledCount());
                 int currentLedIndex = 0;
-                for (const char* side : sides) {
-                    JsonArray array = stateObj[side];
-                    if (array.isNull()) continue; // Якщо сторони немає в JSON, пропускаємо
-
+                for (const char* side : *sides) {
+                    JsonArray array = jsonObj[side];
+                    if (array.isNull()) continue;
                     for (String colorStr: array) {
-                        // Захист від переповнення буфера (якщо прийшло більше кольорів, ніж є діодів)
-                        if (currentLedIndex >= deviceSettings.ledCount()) break; //todo -> set NUM_LEDS from total colors received
-
-                        LedStrip[currentLedIndex] = parseHexColor(colorStr);
-
+                        if (currentLedIndex >= deviceSettings.ledCount()) break;
+                        stateColors.emplace_back(parseHexColor(colorStr));
                         currentLedIndex++;
                     }
                 }
-                UpdateRGBTrigger.set();
+
+                LEDService.setColors(stateColors);
+                deviceSettings.saveCurrentState(stateColors);
                 request->send(200, "application/json", Http::statusOk("ok"));
             } else {
                 request->send(400, "application/json", Http::statusError("wrong data") );
             }
         }, 8192);
+
+        server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request) {
+            ControlButtonState.set();
+            LEDService.clear();
+            request->send(200, "application/json", Http::statusOk("Test RGB"));
+        });
+
+        server.on("/state", HTTP_GET, [](AsyncWebServerRequest *request) {
+            DynamicJsonDocument payloadDoc(2048);
+            JsonArray colorsArray = payloadDoc.createNestedArray("colors");
+            for (const CRGB& color : LEDService.currentState()) {
+                char hexBuf[8];
+                snprintf(hexBuf, sizeof(hexBuf), "#%02x%02x%02x", color.r, color.g, color.b);
+                colorsArray.add(hexBuf);
+            }
+            request->send(200, "application/json", Http::dataResponse<3072>("Current state", payloadDoc.as<JsonObject>()));
+        });
 
         server.on("/testRgb", HTTP_GET, [](AsyncWebServerRequest *request) {
             TestRGB.set();
@@ -269,6 +217,13 @@ void setup() {
             request->send(200, "application/json", Http::statusOk());
         });
 
+        server.on("/id", HTTP_GET, [](AsyncWebServerRequest *request) {
+            request->send(200, "application/json", ID::toJsonString());
+        });
+        ID::setUrl("/", "/color");
+        ID::addAction("Restart", "/restart");
+        ID::addAction("Test RGB", "/testRgb");
+
         if (deviceStartupMode == SETUP || (deviceStartupMode == RUN && deviceSettings.otaUpdateOnClientMode())) {
             otaUpdate.init(deviceSettings.customHotspotSsid(), DEVICE_HOSTNAME);
             otaUpdate.begin(&server);
@@ -286,31 +241,29 @@ void loop() {
     Main(200, [](){
         /**Place your code here, adjust interval*/
         testRGB(TestRGB.get(), [](){
-            ledStripTest(deviceSettings.ledCount());
+            LEDService.testLEDStrip();
             TestRGB.reset();
         });
-
-
-    });
-
-    toggleStripTask(!digitalRead(pinA1),
-                    []() {
-                        ControlButtonState = !ControlButtonState.get();
-                        toggleStrip();
-                    },
-                    []() {
-
-    });
-
-    updateRGB(UpdateRGBTrigger.get(), [](){
-        FastLED.show();
-        UpdateRGBTrigger.reset();
+        toggleStripTask(digitalRead(pinA1),
+                        []() {},
+                        []() {
+                            logger.log("[MAIN] Toggle light ", ControlButtonState.get());
+                            if (!ControlButtonState.get()) {
+                                LEDService.restoreLastState();
+                            } else {
+                                LEDService.clear();
+                            }
+                            ControlButtonState = !ControlButtonState.get();
+        });
     });
 
     fadeOutRGB(FadeOutRgbTrigger.get(), []() {
-        fadeOut(deviceSettings.ledCount());
+        LEDService.fadeOut();
         FadeOutRgbTrigger.reset();
     });
 
-    restartTask(RestartTrigger.get(), restart);
+    restartTask(RestartTrigger.get(), [](){
+        LEDService.fillColor(Red);
+        restart();
+    });
 }

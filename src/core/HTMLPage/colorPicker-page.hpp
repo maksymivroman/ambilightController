@@ -9,193 +9,293 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LED Curve Controller</title>
+    <title>LED Spectrum Controller</title>
     <style>
+        :root {
+            --bg-a: #ff9a9e;
+            --bg-b: #fad0c4;
+            --bg-c: #a1c4fd;
+            --accent: #0f172a;
+            --card-w: min(90vw, 450px);
+            --card-h: min(90vh, 800px);
+        }
+
         * { box-sizing: border-box; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: #121212;
-            color: white;
+        html {
+            height: 100%;
             margin: 0;
-            padding: 0;
-            height: 100vh;
+            font-family: Inter, system-ui, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            background: linear-gradient(120deg, var(--bg-a) 0%, var(--bg-b) 45%, var(--bg-c) 100%);
+            overflow: hidden;
+        }
+
+        .settings-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            color: var(--accent);
+            opacity: 0.7;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 100;
+        }
+        .settings-btn:hover { opacity: 1; transform: rotate(45deg); }
+        .settings-btn svg { width: 28px; height: 28px; }
+
+        .card {
+            width: var(--card-w);
+            height: var(--card-h);
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            user-select: none;
+            position: relative;
+            border-radius: 2rem;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 10px 30px rgba(15,23,42,0.15), inset 0 0 0 1px rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.25);
+            padding: 1.5rem;
         }
 
         header {
-            padding: 15px;
             text-align: center;
-            background: #1e1e1e;
-            flex-shrink: 0;
-            border-bottom: 1px solid #333;
-            z-index: 10;
+            margin-bottom: 1rem;
         }
 
-        h2 { margin: 0; font-size: 1.2rem; }
+        h2 {
+            margin: 0;
+            font-size: 1.4rem;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
         .status {
             font-size: 0.85rem;
-            color: #888;
-            margin-top: 5px;
+            color: rgba(15,23,42,0.6);
+            margin-top: 4px;
             min-height: 1.2em;
-            transition: color 0.3s;
+            font-weight: 500;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 5px;
+            font-size: 0.9rem;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.5);
+            color: var(--accent);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .btn:active { transform: scale(0.95); }
+
+        .btn-white { background: rgba(255, 255, 255, 0.9); }
+        .btn-reset { background: rgba(255, 255, 255, 0.3); }
+        .btn-off {
+            background: rgba(255, 100, 100, 0.2);
+            color: #991b1b;
+            border-color: rgba(255, 100, 100, 0.3);
         }
 
         .canvas-container {
             flex-grow: 1;
             position: relative;
             width: 100%;
-            background: #000;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: inset 0 4px 15px rgba(0,0,0,0.4);
             cursor: crosshair;
             touch-action: none;
+            background: #000;
         }
 
         canvas {
             display: block;
             width: 100%;
-            height: 90%;
+            height: 100%;
         }
 
-        .controls {
-            padding: 15px;
-            background: #1e1e1e;
-            border-top: 1px solid #333;
-            flex-shrink: 0;
-            display: flex;
-            justify-content: center;
-            z-index: 10;
+        @media (max-width: 480px) {
+            .card {
+                width: 95vw;
+                height: 95vh;
+                padding: 1rem;
+                border-radius: 1.5rem;
+            }
+            .btn { font-size: 0.85rem; padding: 10px 4px; }
         }
-
-        button {
-            padding: 12px 30px;
-            font-size: 16px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            width: 100%;
-            max-width: 300px;
-            background: #d32f2f;
-            color: white;
-            transition: opacity 0.2s;
-        }
-
-        button:active { opacity: 0.7; }
-
     </style>
 </head>
 <body>
 
-<header>
-    <h2>Ambilight Controller</h2>
-    <div class="status" id="status">Loading...</div>
-</header>
+<button class="settings-btn" title="Налаштування" onclick="location.href='/'">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19.14,12.94a7.07,7.07,0,0,0,.05-.94,7.07,7.07,0,0,0-.05-.94l2.11-1.65a.5.5,0,0,0,.12-.64l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a6.94,6.94,0,0,0-1.63-.94l-.38-2.65A.5.5,0,0,0,13.5,2h-4a.5.5,0,0,0-.5.42L8.62,5.07a6.94,6.94,0,0,0-1.63.94l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.64L4.14,11.06a7.07,7.07,0,0,0-.05.94,7.07,7.07,0,0,0,.05.94L2,14.59a.5.5,0,0,0-.12.64l2,3.46a.5.5,0,0,0,.61.22l2.49-1a6.94,6.94,0,0,0,1.63.94l.38,2.65A.5.5,0,0,0,9.5,22h4a.5.5,0,0,0,.5-.42l.38-2.65a6.94,6.94,0,0,0,1.63-.94l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
+    </svg>
+</button>
 
-<div class="canvas-container" id="canvasContainer">
-    <canvas id="colorCanvas"></canvas>
-</div>
+<main class="card">
+    <header>
+        <h2>Спектр Кольорів</h2>
+        <div class="status" id="status">Завантаження налаштувань...</div>
+    </header>
 
-<div class="controls">
-    <button id="btn-reset">Reset</button>
-</div>
+    <div class="controls">
+        <button class="btn btn-white" id="btn-white">Білий</button>
+        <button class="btn btn-reset" id="btn-reset">Скинути</button>
+        <button class="btn btn-off" id="btn-off">Вимкнути</button>
+    </div>
+
+    <div class="canvas-container" id="canvasContainer">
+        <canvas id="colorCanvas"></canvas>
+    </div>
+</main>
 
 <script>
+    // --- КОНСТАНТИ ---
     const SETTINGS_URL = '/settings';
-    const UPDATE_URL = '/update';
     const STARTUP_MODE_URL = '/deviceMode';
     const CONTROLLER_URL = "/rgb";
+    const OFF_URL = "/off";
+    const STATE_URL = "/state";
 
+    // --- ЗМІННІ ---
     let SETTINGS = {};
     let LED_COUNT = 60;
     let curvePoints = [];
     let isDrawing = false;
+    let lastUpdatedIndex = null;
+    let lastUpdatedX = null;
+    let drawPending = false;
 
+    // --- ЕЛЕМЕНТИ ---
     const canvasContainer = document.getElementById('canvasContainer');
     const canvas = document.getElementById('colorCanvas');
     const ctx = canvas.getContext('2d');
     const statusDiv = document.getElementById('status');
-
 
     // --- HTTP REQUEST ---
     function httpRequest(method, url, data, callback) {
         let xhr = new XMLHttpRequest();
         xhr.open(method, url, true);
         xhr.responseType = "json";
-        if (method === 'POST') {
-            xhr.setRequestHeader('Content-Type', 'application/json');
-        }
-        xhr.onload = function () {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                callback(null, xhr.response);
-            } else {
-                callback('Request failed with status: ' + xhr.status, null);
-            }
+        if (method === 'POST') xhr.setRequestHeader('Content-Type', 'application/json');
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) callback(null, xhr.response);
+            else callback('Status: ' + xhr.status, null);
         };
-        xhr.onerror = function () {
-            callback('Request failed', null);
-        };
+        xhr.onerror = () => callback('Network Error', null);
         xhr.send(data);
     }
 
+    function hexToHueFraction(hex) {
+        if (!hex) return 0.5;
+        let r = parseInt(hex.substring(1, 3), 16) / 255;
+        let g = parseInt(hex.substring(3, 5), 16) / 255;
+        let b = parseInt(hex.substring(5, 7), 16) / 255;
+
+        let max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h = 0;
+        if (max === min) return 0.5;
+
+        let d = max - min;
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        return h / 6;
+    }
+
+    // --- ЗАВАНТАЖЕННЯ ---
     function getBaseSettings() {
         httpRequest('GET', STARTUP_MODE_URL, null, (error, data) => {
-            if (error) console.error("Mode fetch error:", error);
             httpRequest('GET', SETTINGS_URL, null, (error, data) => {
-                if (error || !data?.result) {
-                    console.error("Settings fetch error:", error);
-                    statusDiv.innerText = "Failed to load settings";
-                    initUI();
-                } else {
+                if (!error && data?.result) {
                     SETTINGS = data.result;
-                    // Оновлюємо LED_COUNT з отриманих даних
-                    if (SETTINGS.ledCount) {
-                        LED_COUNT = parseInt(SETTINGS.ledCount);
-                    }
-                    console.log("Loaded LED_COUNT:", LED_COUNT);
-                    statusDiv.innerText = "Draw";
-                    initUI();
+                    if (SETTINGS.ledCount) LED_COUNT = parseInt(SETTINGS.ledCount);
                 }
-            })
+                // 3. ОТРИМУЄМО ПОТОЧНИЙ СТАН КОЛЬОРІВ
+                httpRequest('GET', STATE_URL, null, (err, data) => {
+                    const stateData = data.result;
+                    curvePoints = new Array(LED_COUNT).fill(0.5);
+                    if (!err && stateData && stateData.colors) {
+                        const len = Math.min(LED_COUNT, stateData.colors.length);
+                        for (let i = 0; i < len; i++) {
+                            // Відновлюємо лінію з кольорів!
+                            curvePoints[i] = hexToHueFraction(stateData.colors[i]);
+                        }
+                    }
+
+                    statusDiv.innerText = "Готово. Малюйте лінію.";
+
+                    updateCanvasSize();
+                });
+
+                statusDiv.innerText = "Готово. Малюйте лінію.";
+                initUI();
+            });
         });
     }
 
-    // --- ІНІЦІАЛІЗАЦІЯ ІНТЕРФЕЙСУ ---
+    // --- ІНІЦІАЛІЗАЦІЯ ---
     function initUI() {
-        // Створюємо масив на основі реальної кількості діодів
         curvePoints = new Array(LED_COUNT).fill(0.5);
-        resizeCanvas();
+        updateCanvasSize();
     }
 
-    getBaseSettings();
+    // --- ЛОГІКА РОЗМІРУ ---
+    const resizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) updateCanvasSize();
+    });
+    resizeObserver.observe(canvasContainer);
 
-    function resizeCanvas() {
-        canvas.width = canvasContainer.clientWidth;
-        canvas.height = canvasContainer.clientHeight;
-        if (curvePoints.length > 0) {
-            drawCurve();
-        }
+    function updateCanvasSize() {
+        const rect = canvasContainer.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+
+        if (curvePoints.length > 0) drawCurve();
     }
 
-    window.addEventListener('resize', resizeCanvas);
-
+    // --- МАЛЮВАННЯ ---
     function drawBackground() {
         const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
-        gradient.addColorStop(0,    "red");
-        gradient.addColorStop(0.17, "orange");
-        gradient.addColorStop(0.33, "yellow");
-        gradient.addColorStop(0.5,  "green");
-        gradient.addColorStop(0.67, "cyan");
-        gradient.addColorStop(0.83, "blue");
-        gradient.addColorStop(1,    "magenta");
+        gradient.addColorStop(0,     "hsl(0, 100%, 50%)");
+        gradient.addColorStop(1/6,   "hsl(60, 100%, 50%)");
+        gradient.addColorStop(2/6,   "hsl(120, 100%, 50%)");
+        gradient.addColorStop(3/6,   "hsl(180, 100%, 50%)");
+        gradient.addColorStop(4/6,   "hsl(240, 100%, 50%)");
+        gradient.addColorStop(5/6,   "hsl(300, 100%, 50%)");
+        gradient.addColorStop(1,     "hsl(360, 100%, 50%)");
 
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        ctx.strokeStyle = "rgba(0,0,0,0.2)";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(0,0,0,0.3)";
+        ctx.lineWidth = 1 * (window.devicePixelRatio || 1);
         ctx.beginPath();
         ctx.moveTo(canvas.width / 2, 0);
         ctx.lineTo(canvas.width / 2, canvas.height);
@@ -206,15 +306,17 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         drawBackground();
 
         ctx.beginPath();
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 4 * (window.devicePixelRatio || 1);
         ctx.strokeStyle = "black";
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
+        const dpr = window.devicePixelRatio || 1;
+        const padding = 15 * dpr;
+        const availableHeight = canvas.height - (padding * 2);
+
         for (let i = 0; i < LED_COUNT; i++) {
-            const padding = 10;
-            const availableHeight = canvas.height - (padding * 2);
-            const y = padding + (i / (LED_COUNT - 1)) * availableHeight;
+            const y = canvas.height - padding - (i / (LED_COUNT - 1)) * availableHeight;
             const x = curvePoints[i] * canvas.width;
 
             if (i === 0) ctx.moveTo(x, y);
@@ -222,11 +324,12 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         }
         ctx.stroke();
 
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 * (window.devicePixelRatio || 1);
         ctx.strokeStyle = "white";
         ctx.stroke();
     }
 
+    // --- ЛОГІКА ВІДПРАВКИ КОЛЬОРІВ ---
     function hslToHex(h, s, l) {
         l /= 100;
         const a = s * Math.min(l, 1 - l) / 100;
@@ -238,111 +341,167 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         return `#${f(0)}${f(8)}${f(4)}`;
     }
 
-    async function sendDataToController() {
-        statusDiv.innerText = "Sending...";
-        statusDiv.style.color = "#FFD700";
-
-        const colors = curvePoints.map(val => {
-            const hue = val * 360;
-            return hslToHex(hue, 100, 50);
-        });
+    // Універсальна функція для відправки будь-якого масиву кольорів
+    function sendPayload(colorsArray, successMessage = "✅ Дані прийнято!") {
+        statusDiv.innerText = "⏳ Відправка...";
+        statusDiv.style.color = "var(--accent)";
 
         const payload = {
-            top: colors,
+            top: colorsArray,
             right: [],
             bottom: [],
             left: []
         };
 
-        try {
-            const response = await fetch(CONTROLLER_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if(response.ok) {
-                statusDiv.innerText = "✅ Ready!";
-                statusDiv.style.color = "#00e676";
+        httpRequest('POST', CONTROLLER_URL, JSON.stringify(payload), (err, res) => {
+            if (!err) {
+                statusDiv.innerText = successMessage;
+                statusDiv.style.color = "#065f46"; // Темно-зелений
             } else {
-                statusDiv.innerText = "❌ Failed: " + response.status;
-                statusDiv.style.color = "#ff3d00";
+                statusDiv.innerText = "❌ Помилка з'єднання";
+                statusDiv.style.color = "#991b1b"; // Темно-червоний
             }
-        } catch (e) {
-            console.error(e);
-            statusDiv.innerText = "❌ Connection failed";
-            statusDiv.style.color = "#ff3d00";
-        }
+        });
     }
 
-    function handleInput(y_px, x_px) {
-        if (curvePoints.length === 0) return;
-
-        const padding = 10;
-        const availableHeight = canvas.height - (padding * 2);
-        let yRelative = y_px - padding;
-
-        let ledIndex = Math.round((yRelative / availableHeight) * (LED_COUNT - 1));
-        ledIndex = Math.max(0, Math.min(LED_COUNT - 1, ledIndex));
-
-        const xNormalized = Math.max(0, Math.min(1, x_px / canvas.width));
-
-        curvePoints[ledIndex] = xNormalized;
-        drawCurve();
+    // Звичайна відправка кривої
+    function sendCurveData() {
+        const colors = curvePoints.map(val => {
+            const hue = val * 360;
+            return hslToHex(hue, 100, 50);
+        });
+        sendPayload(colors);
     }
 
-    // --- LISTENERS (ПОДІЇ) ---
-    // 1. МИША
-    canvas.addEventListener('mousedown', (e) => {
-        isDrawing = true;
-        handleInput(e.offsetY, e.offsetX);
-    });
-
-    canvas.addEventListener('mousemove', (e) => {
-        if(isDrawing) handleInput(e.offsetY, e.offsetX);
-    });
-
-    window.addEventListener('mouseup', () => {
-        if (isDrawing) {
-            isDrawing = false;
-            sendDataToController();
-        }
-    });
-
-    // 2. ТАЧСКРІН
-    const getTouchPos = (touch) => {
-        const rect = canvas.getBoundingClientRect();
-        return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    // --- КНОПКИ ПАНЕЛІ ---
+    document.getElementById('btn-white').onclick = () => {
+        // Формуємо масив з чисто білих кольорів
+        const whiteColors = new Array(LED_COUNT).fill("#FFFFFF");
+        sendPayload(whiteColors, "✅ Увімкнено білий");
     };
-
-    canvas.addEventListener('touchstart', (e) => {
-        isDrawing = true;
-        const pos = getTouchPos(e.touches[0]);
-        handleInput(pos.y, pos.x);
-    }, {passive: false});
-
-    canvas.addEventListener('touchmove', (e) => {
-        if(isDrawing) {
-            const pos = getTouchPos(e.touches[0]);
-            handleInput(pos.y, pos.x);
-            e.preventDefault();
-        }
-    }, {passive: false});
-
-    window.addEventListener('touchend', () => {
-        if (isDrawing) {
-            isDrawing = false;
-            sendDataToController();
-        }
-    });
 
     document.getElementById('btn-reset').onclick = () => {
         if (curvePoints.length > 0) {
             curvePoints.fill(0.5);
+            lastUpdatedIndex = null;
             drawCurve();
-            sendDataToController();
+            sendCurveData();
         }
     };
+
+    document.getElementById('btn-off').onclick = () => {
+        statusDiv.innerText = "⏳ Вимикання...";
+        statusDiv.style.color = "var(--accent)";
+
+        // Відправляємо GET запит на /off
+        httpRequest('GET', OFF_URL, null, (err, res) => {
+            if (!err) {
+                statusDiv.innerText = "✅ Стрічку вимкнено";
+                statusDiv.style.color = "#991b1b";
+            } else {
+                statusDiv.innerText = "❌ Помилка вимикання";
+                statusDiv.style.color = "#991b1b";
+            }
+        });
+    };
+
+    // --- ОБРОБКА ВВОДУ ---
+    function getPointerPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        let clientX, clientY;
+
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    function handleInput(pos, isStartOfStroke = false) {
+        if (curvePoints.length === 0) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const cssPadding = 15;
+        const availableCssHeight = rect.height - (cssPadding * 2);
+
+        let yRelative = pos.y - cssPadding;
+        let yInverted = availableCssHeight - yRelative;
+
+        let ledIndex = Math.round((yInverted / availableCssHeight) * (LED_COUNT - 1));
+        ledIndex = Math.max(0, Math.min(LED_COUNT - 1, ledIndex));
+
+        const xNormalized = Math.max(0, Math.min(1, pos.x / rect.width));
+
+        if (isStartOfStroke || lastUpdatedIndex === null) {
+            curvePoints[ledIndex] = xNormalized;
+        } else {
+            const indexDiff = ledIndex - lastUpdatedIndex;
+            const xDiff = xNormalized - lastUpdatedX;
+            const steps = Math.abs(indexDiff);
+
+            if (steps > 0) {
+                for (let step = 1; step <= steps; step++) {
+                    const t = step / steps;
+                    const interpolatedIndex = Math.round(lastUpdatedIndex + indexDiff * t);
+                    const interpolatedX = lastUpdatedX + xDiff * t;
+                    curvePoints[interpolatedIndex] = interpolatedX;
+                }
+            }
+        }
+
+        lastUpdatedIndex = ledIndex;
+        lastUpdatedX = xNormalized;
+
+        if (!drawPending) {
+            drawPending = true;
+            requestAnimationFrame(() => {
+                drawCurve();
+                drawPending = false;
+            });
+        }
+    }
+
+    // --- ПОДІЇ ---
+    canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        handleInput(getPointerPos(e), true);
+    });
+    canvas.addEventListener('mousemove', (e) => {
+        if(isDrawing) handleInput(getPointerPos(e), false);
+    });
+    window.addEventListener('mouseup', () => {
+        if (isDrawing) {
+            isDrawing = false;
+            lastUpdatedIndex = null;
+            sendCurveData(); // Відправляємо дані кривої
+        }
+    });
+
+    canvas.addEventListener('touchstart', (e) => {
+        isDrawing = true;
+        handleInput(getPointerPos(e), true);
+        e.preventDefault();
+    }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => {
+        if(isDrawing) {
+            handleInput(getPointerPos(e), false);
+            e.preventDefault();
+        }
+    }, {passive: false});
+    window.addEventListener('touchend', () => {
+        if (isDrawing) {
+            isDrawing = false;
+            lastUpdatedIndex = null;
+            sendCurveData(); // Відправляємо дані кривої
+        }
+    });
+
+    // Старт
+    getBaseSettings();
 
 </script>
 </body>
