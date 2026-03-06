@@ -5,7 +5,7 @@
 #include "core/Global/Global.hpp"
 #include <map>
 
-typedef enum WIFI_CONNECTION_RESULT {CONNECTED, CONNECTION_FAILED} WiFiConnectionResult;
+typedef enum WIFI_CONNECTION_RESULT {CONNECTED, CONNECTION_FAILED, CONNECTION_PENDING} WiFiConnectionResult;
 typedef std::map<WiFiPhyMode, String> WiFiModeMap;
 
 class NetworkService {
@@ -18,6 +18,7 @@ public:
     bool isConnectedToWiFi();
     bool isAPMode();
     void setWiFiMode(CONTROLLER_WIFI_MODE mode);
+    String ipAddress() const;
 
     String getWiFIMode() const;
 private:
@@ -30,6 +31,8 @@ private:
             {WIFI_PHY_MODE_11N, "11N"}
     };
     WiFiConnectionResult initWiFiConnection(const String& ssid, const String& pass, unsigned int retryAttempt = 0);
+
+    bool _isConnectionInitialized {false};
 };
 
 #endif

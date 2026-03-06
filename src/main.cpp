@@ -17,7 +17,7 @@
 #include "core/LEDService/LEDStripService.h"
 #include "core/ID/ID.h"
 
-Version deviceVersion(0, 2, 0, false);
+Version deviceVersion(1, 0, 0, false);
 const byte pinA1 = 4;
 
 StartupMode deviceStartupMode = RUN;
@@ -31,8 +31,8 @@ OtaUpdate otaUpdate(&RestartTrigger);
 
 Logger logger(115200, 20);
 
-Task restartTask, checkConnectionTask, testRGB, fadeOutRGB, toggleStripTask(true);
-IntervalTask Main;
+Task restartTask, testRGB, fadeOutRGB, toggleStripTask(true), CheckConnectionTask(true);
+IntervalTask Main, ConnectToWiFiITask;
 
 LEDStripService LEDService;
 
@@ -80,8 +80,6 @@ void setup() {
     if (deviceStartupMode == SETUP) {
         const char *networkSsid = deviceSettings.customHotspotSsid();
         networkService.buttonHotspot(true, networkSsid, DEVICE_HOTSPOT_PASS);
-    } else if (deviceStartupMode == RUN) {
-        networkService.connectToWiFi(wiFiConnDetails);
     }
 
     LEDService.init(deviceSettings.ledCount());
@@ -157,7 +155,6 @@ void setup() {
                         currentLedIndex++;
                     }
                 }
-
                 LEDService.setColors(stateColors);
                 deviceSettings.saveCurrentState(stateColors);
                 request->send(200, "application/json", Http::statusOk("ok"));
@@ -259,6 +256,19 @@ void setup() {
 }
 
 void loop() {
+    ConnectToWiFiITask(1000, []() {
+        auto config = deviceSettings.wifiSettings();
+        networkService.connectToWiFi(config);
+    }, (deviceStartupMode == SETUP) || networkService.isConnectedToWiFi());
+
+    CheckConnectionTask(
+            networkService.isConnectedToWiFi(),
+            [](){ logger.log("[CheckConnectionTask]: Connected. IP: ", networkService.ipAddress());
+            },
+            [](){ logger.log("[CheckConnectionTask]: Disconnected"); },
+            deviceStartupMode == SETUP
+    );
+
     Main(200, [](){
         /**Place your code here, adjust interval*/
         testRGB(TestRGB.get(), [](){

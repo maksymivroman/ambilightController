@@ -6,6 +6,10 @@
 
 
 void LEDStripService::init(unsigned int ledCount) {
+    if(ledCount > 1000) {
+        logger.log("[LEDStripService] ", "Init LED Strip. ERROR: cannot set LED count to ", ledCount);
+        ledCount = 1;
+    }
     logger.log("[LEDStripService] ", "Init LED Strip. LEDs count: ", ledCount);
     logger.log("[LEDStripService] ", "Init LED Strip. Data pin: ", DATA_PIN);
     this->ledCount = ledCount;
