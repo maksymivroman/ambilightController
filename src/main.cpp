@@ -16,23 +16,26 @@
 #include "core/Trigger/Trigger.h"
 #include "core/LEDService/LEDStripService.h"
 #include "core/ID/ID.h"
+#include "core/ButtonHandler/ButtonHandler.h"
 
-Version deviceVersion(1, 0, 0, false);
+Version deviceVersion(1, 0, 1, false);
 const byte pinA1 = 4;
+
+ButtonHandler button(pinA1);
 
 StartupMode deviceStartupMode = RUN;
 
 Settings deviceSettings;
 AsyncWebServer server(80);
 NetworkService networkService;
-Trigger RestartTrigger, UpdateRGBTrigger, TestRGB, FadeOutRgbTrigger, ControlButtonState;
+Trigger RestartTrigger, TestRGB, FadeOutRgbTrigger, AnimateTrigger, ControlButtonState;
 
 OtaUpdate otaUpdate(&RestartTrigger);
 
 Logger logger(115200, 20);
 
 Task restartTask, testRGB, fadeOutRGB, toggleStripTask(true), CheckConnectionTask(true);
-IntervalTask Main, ConnectToWiFiITask;
+IntervalTask Main, ConnectToWiFiITask, AnimateITask;
 
 LEDStripService LEDService;
 
@@ -50,14 +53,34 @@ void setStartupMode() {
 
 uint32_t parseHexColor(const String& hex) {
     if (hex.isEmpty()) return 0;
-    // Пропускаємо символ '#', якщо він є (індекс 1), інакше 0
     int offset = (hex[0] == '#') ? 1 : 0;
     return strtoul(hex.c_str() + offset, nullptr, 16);
 }
 
 void setup() {
     /** define IO pins here */
-    pinMode(pinA1, INPUT);
+//    pinMode(pinA1, INPUT);
+
+    button.attachShortPressHandler([](){
+        AnimateTrigger.reset();
+        logger.log("[MAIN] Toggle light ", ControlButtonState.get());
+        if (!ControlButtonState.get()) {
+            LEDService.restoreLastState();
+        } else {
+            LEDService.clear();
+        }
+        ControlButtonState = !ControlButtonState.get();
+    });
+
+    button.attachLongPressHandler([]() {
+        AnimateTrigger.set();
+    });
+
+    button.attachDoublePressHandler([](){
+        AnimateTrigger.reset();
+        LEDService.fillWhite();
+    });
+    button.begin();
 
     /** load device settings and init device*/
     deviceSettings.loadSettings();
@@ -155,6 +178,7 @@ void setup() {
                         currentLedIndex++;
                     }
                 }
+                AnimateTrigger.reset();
                 LEDService.setColors(stateColors);
                 deviceSettings.saveCurrentState(stateColors);
                 request->send(200, "application/json", Http::statusOk("ok"));
@@ -179,8 +203,9 @@ void setup() {
             }
         }, 1024);
 
-        server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request) {
+        server.on("/off", HTTP_POST, [](AsyncWebServerRequest *request) {
             ControlButtonState.set();
+            AnimateTrigger.reset();
             LEDService.clear();
             request->send(200, "application/json", Http::statusOk("Test RGB"));
         });
@@ -199,12 +224,26 @@ void setup() {
 
         server.on("/testRgb", HTTP_GET, [](AsyncWebServerRequest *request) {
             TestRGB.set();
+            AnimateTrigger.reset();
             request->send(200, "application/json", Http::statusOk("Test RGB"));
         });
 
         server.on("/fadeOutRgb", HTTP_GET, [](AsyncWebServerRequest *request) {
             FadeOutRgbTrigger.set();
+            AnimateTrigger.reset();
             request->send(200, "application/json", Http::statusOk("Fade Out RGB"));
+        });
+
+        server.on("/animate", HTTP_POST, [](AsyncWebServerRequest *request) {
+            AnimateTrigger.set();
+            request->send(200, "application/json", Http::statusOk("Animate"));
+        });
+
+        server.on("/setWhiteColor", HTTP_POST, [](AsyncWebServerRequest *request) {
+            AnimateTrigger.reset();
+            auto state = LEDService.fillWhite();
+//            deviceSettings.saveCurrentState(state);
+            request->send(200, "application/json", Http::statusOk("Color set to: White"));
         });
 
         server.on("/networks", HTTP_GET, [wiFiList](AsyncWebServerRequest *request) {
@@ -239,7 +278,21 @@ void setup() {
         });
         ID::setUrl("/", "/color");
         ID::addAction("Restart", "/restart");
-        ID::addAction("Test RGB", "/testRgb");
+        ID::addAction("Animation", "/animate");
+        ID::addAction("White", "/setWhiteColor");
+        ID::addAction("OFF", "/off");
+        ID::addStateHandler([]() -> String {
+            StaticJsonDocument<128> doc;
+            auto mode = []() -> String {
+                return LEDService.getLEDStripMode() == LED_OFF ? "OFF"
+                                                        : (LEDService.getLEDStripMode() == LED_ON ? "ON" : "ANIMATION");
+            };
+            doc["power"] = mode();
+            doc["brightness"] = LEDService.getBrightness();
+            String state;
+            serializeJson(doc, state);
+            return state;
+        });
 
         if (deviceStartupMode == SETUP || (deviceStartupMode == RUN && deviceSettings.otaUpdateOnClientMode())) {
             otaUpdate.init(deviceSettings.customHotspotSsid(), DEVICE_HOSTNAME);
@@ -249,6 +302,11 @@ void setup() {
         server.addHandler(handler);
         server.addHandler(rgbHandler);
         server.addHandler(brightnessHandler);
+
+        DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+        DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "*");
+        DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+
         server.begin();
     }
 
@@ -256,6 +314,8 @@ void setup() {
 }
 
 void loop() {
+    button.handle();
+
     ConnectToWiFiITask(1000, []() {
         auto config = deviceSettings.wifiSettings();
         networkService.connectToWiFi(config);
@@ -275,23 +335,16 @@ void loop() {
             LEDService.testLEDStrip();
             TestRGB.reset();
         });
-        toggleStripTask(digitalRead(pinA1),
-                        []() {},
-                        []() {
-                            logger.log("[MAIN] Toggle light ", ControlButtonState.get());
-                            if (!ControlButtonState.get()) {
-                                LEDService.restoreLastState();
-                            } else {
-                                LEDService.clear();
-                            }
-                            ControlButtonState = !ControlButtonState.get();
-        });
     });
 
     fadeOutRGB(FadeOutRgbTrigger.get(), []() {
         LEDService.fadeOut();
         FadeOutRgbTrigger.reset();
     });
+
+    AnimateITask(50, []() {
+        LEDService.animate(true);
+    },!AnimateTrigger.get());
 
     restartTask(RestartTrigger.get(), [](){
         LEDService.fillColor(Red);

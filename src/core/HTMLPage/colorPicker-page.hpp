@@ -9,7 +9,7 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LED Spectrum Controller</title>
+    <title>Ambilight Controller</title>
     <style>
         :root {
             --bg-a: #ff9a9e;
@@ -109,6 +109,12 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         .btn:active { transform: scale(0.95); }
 
         .btn-white { background: rgba(255, 255, 255, 0.9); }
+        .btn-animate {
+            color: white;
+            border: none;
+            background: #833AB4;
+            background: linear-gradient(90deg, rgba(131, 58, 180, 1) 0%, rgba(253, 29, 29, 1) 50%, rgba(252, 176, 69, 1) 100%);
+        }
         .btn-reset { background: rgba(255, 255, 255, 0.3); }
         .btn-off {
             background: rgba(255, 100, 100, 0.2);
@@ -134,7 +140,6 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
             height: 100%;
         }
 
-        /* Стилі для повзунка яскравості */
         .slider-container {
             margin-bottom: 15px;
             width: 100%;
@@ -167,7 +172,6 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
             outline: none;
         }
 
-        /* Доріжка повзунка */
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%;
             height: 10px;
@@ -178,7 +182,6 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
             border: 1px solid rgba(255,255,255,0.3);
         }
 
-        /* Сам повзунок (кружечок) */
         input[type=range]::-webkit-slider-thumb {
             height: 22px;
             width: 22px;
@@ -221,6 +224,7 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
     </header>
 
     <div class="controls">
+        <button class="btn btn-animate" id="btn-animate">Динаміка</button>
         <button class="btn btn-white" id="btn-white">Білий</button>
         <button class="btn btn-reset" id="btn-reset">Скинути</button>
         <button class="btn btn-off" id="btn-off">Вимкнути</button>
@@ -237,15 +241,14 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
 </main>
 
 <script>
-    // --- КОНСТАНТИ ---
     const SETTINGS_URL = '/settings';
     const STARTUP_MODE_URL = '/deviceMode';
     const CONTROLLER_URL = "/rgb";
     const OFF_URL = "/off";
+    const URL_ANIMATE = "/animate";
     const STATE_URL = "/state";
     const BRIGHTNESS_URL = "/brightness";
 
-    // --- ЗМІННІ ---
     let SETTINGS = {};
     let LED_COUNT = 60;
     let curvePoints = [];
@@ -254,13 +257,11 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
     let lastUpdatedX = null;
     let drawPending = false;
 
-    // --- ЕЛЕМЕНТИ ---
     const canvasContainer = document.getElementById('canvasContainer');
     const canvas = document.getElementById('colorCanvas');
     const ctx = canvas.getContext('2d');
     const statusDiv = document.getElementById('status');
 
-    // --- HTTP REQUEST ---
     function httpRequest(method, url, data, callback) {
         let xhr = new XMLHttpRequest();
         xhr.open(method, url, true);
@@ -364,7 +365,6 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         });
     }
 
-    // --- ІНІЦІАЛІЗАЦІЯ ---
     function initUI() {
         curvePoints = new Array(LED_COUNT).fill(0.5);
         updateCanvasSize();
@@ -386,7 +386,6 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         if (curvePoints.length > 0) drawCurve();
     }
 
-    // --- МАЛЮВАННЯ ---
     function drawBackground() {
         const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
         gradient.addColorStop(0,     "hsl(0, 100%, 50%)");
@@ -462,15 +461,14 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         httpRequest('POST', CONTROLLER_URL, JSON.stringify(payload), (err, res) => {
             if (!err) {
                 statusDiv.innerText = successMessage;
-                statusDiv.style.color = "#065f46"; // Темно-зелений
+                statusDiv.style.color = "#065f46";
             } else {
                 statusDiv.innerText = "❌ Помилка з'єднання";
-                statusDiv.style.color = "#991b1b"; // Темно-червоний
+                statusDiv.style.color = "#991b1b";
             }
         });
     }
 
-    // Звичайна відправка кривої
     function sendCurveData() {
         const colors = curvePoints.map(val => {
             const hue = val * 360;
@@ -481,9 +479,23 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
 
     // --- КНОПКИ ПАНЕЛІ ---
     document.getElementById('btn-white').onclick = () => {
-        // Формуємо масив з чисто білих кольорів
         const whiteColors = new Array(LED_COUNT).fill("#FFFFFF");
         sendPayload(whiteColors, "✅ Увімкнено білий");
+    };
+
+    document.getElementById('btn-animate').onclick = () => {
+        statusDiv.innerText = "...";
+        statusDiv.style.color = "var(--accent)";
+
+        httpRequest('POST', URL_ANIMATE, null, (err, res) => {
+            if (!err) {
+                statusDiv.innerText = "✅ Анімацію ввімкнено";
+                statusDiv.style.color = "#991b1b";
+            } else {
+                statusDiv.innerText = "❌ Помилка";
+                statusDiv.style.color = "#991b1b";
+            }
+        });
     };
 
     document.getElementById('btn-reset').onclick = () => {
@@ -499,8 +511,7 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         statusDiv.innerText = "⏳ Вимикання...";
         statusDiv.style.color = "var(--accent)";
 
-        // Відправляємо GET запит на /off
-        httpRequest('GET', OFF_URL, null, (err, res) => {
+        httpRequest('POST', OFF_URL, null, (err, res) => {
             if (!err) {
                 statusDiv.innerText = "✅ Стрічку вимкнено";
                 statusDiv.style.color = "#991b1b";
@@ -571,7 +582,6 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         }
     }
 
-    // --- ПОДІЇ ---
     canvas.addEventListener('mousedown', (e) => {
         isDrawing = true;
         handleInput(getPointerPos(e), true);
@@ -583,7 +593,7 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         if (isDrawing) {
             isDrawing = false;
             lastUpdatedIndex = null;
-            sendCurveData(); // Відправляємо дані кривої
+            sendCurveData();
         }
     });
 
@@ -602,11 +612,10 @@ const char colorPicker_html[] PROGMEM = R"rawliteral(
         if (isDrawing) {
             isDrawing = false;
             lastUpdatedIndex = null;
-            sendCurveData(); // Відправляємо дані кривої
+            sendCurveData();
         }
     });
 
-    // Старт
     getBaseSettings();
 
 </script>

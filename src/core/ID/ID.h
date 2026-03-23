@@ -31,6 +31,10 @@ public:
     static void setUrl(const String & hostUrl, const String & uiUrl, const String &widgetUrl);
     static String toJsonString();
 
+    static void addStateHandler(std::function<String()> stateHandlerFn){
+        _stateHandlerFn = stateHandlerFn;
+    }
+
 private:
     static const size_t MAX_ACTIONS = 10;
     static Action _actions[MAX_ACTIONS];
@@ -40,6 +44,9 @@ private:
     static String _uiUrl;
     static String _widgetUrl;
     static size_t _actionCount;
+    static String _state;
+
+    static std::function<String()> _stateHandlerFn;
 };
 
 

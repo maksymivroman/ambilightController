@@ -322,6 +322,12 @@
 
     function saveSettings() {
         console.log("Save device settings");
+        const mapInputData = (key, value) => {
+            switch (key) {
+                case 'ledCount':
+                    return Number(value);
+            }
+        }
         let data = {};
         checkboxSettings.forEach(value => {
             Object.assign(data, {[value]: Number(document.getElementById(value).checked)})
@@ -330,7 +336,7 @@
             Object.assign(data, {[value]: document.getElementById(value).selectedIndex})
         });
         inputsSettings.forEach(value => {
-            Object.assign(data, {[value]: document.getElementById(value).value})
+            Object.assign(data, {[value]: mapInputData(value, document.getElementById(value).value)})
         });
 
         httpRequest('POST', SETTINGS_URL, JSON.stringify({"configuration": data, "data": null}), (error, _) => {

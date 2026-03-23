@@ -9,6 +9,7 @@ String ID::_hostUrl = "/";
 String ID::_uiUrl = "/";
 String ID::_widgetUrl = "";
 size_t ID::_actionCount = 0;
+std::function<String()> ID::_stateHandlerFn = nullptr;
 
 void ID::addAction(const String &name, const String &action) {
     if (_actionCount < MAX_ACTIONS) {
@@ -34,6 +35,8 @@ String ID::toJsonString() {
     } else {
         doc["widgetUrl"] = _widgetUrl;
     }
+    doc["state"] = _stateHandlerFn();
+
     JsonArray actionsArray = doc.createNestedArray("actions");
 
     for (size_t i = 0; i < _actionCount; i++) {

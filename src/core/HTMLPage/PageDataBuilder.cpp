@@ -17,7 +17,7 @@ String PageDataBuilder::pageDataByRef(const String &ref) {
         data += DEVICE_HOSTNAME;
         return data;
     } else if (ref == "PAGE_SECTION") {
-        data += "section name";
+        data += "settings";
         return data;
     }
     return data;
