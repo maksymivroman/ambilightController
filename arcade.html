@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Controller</title>
+    <style>
+        :root {
+            --bg: #121212;
+            --red: #ff4b2b;
+            --blue: #00d2ff;
+            --gray: #2a2a2a;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: white;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+        }
+
+        h1 { font-weight: 200; letter-spacing: 4px; margin-bottom: 20px; color: #444; }
+
+        /* System Controls (TOP) */
+        .system-container {
+            display: flex;
+            gap: 12px;
+            width: 85%;
+            max-width: 400px;
+            margin-bottom: 40px;
+        }
+
+        .btn-sys {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: var(--gray);
+            color: #888;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: background 0.2s;
+        }
+
+        /* Main Game Buttons (BOTTOM) */
+        .game-container {
+            display: flex;
+            gap: 20px;
+            width: 85%;
+            max-width: 400px;
+        }
+
+        .btn-main {
+            flex: 1;
+            padding: 60px 20px;
+            border: none;
+            border-radius: 20px;
+            font-size: 1.6rem;
+            font-weight: 900;
+            cursor: pointer;
+            transition: transform 0.05s;
+            box-shadow: 0 8px 0 rgba(0,0,0,0.5);
+        }
+
+        .red { background: var(--red); color: white; }
+        .blue { background: var(--blue); color: white; }
+
+        .btn-main:active, .btn-sys:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.5);
+        }
+
+        #status { margin-top: 40px; color: #333; font-family: monospace; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+<h1>ARCADE</h1>
+
+<div class="system-container">
+    <button class="btn-sys" onclick="send('/arcadeStart')">Start / Reset</button>
+    <button class="btn-sys" onclick="send('/arcadeStop')">Stop</button>
+</div>
+
+<div class="game-container">
+    <button class="btn-main red" onclick="send('/hitRed')">RED</button>
+    <button class="btn-main blue" onclick="send('/hitBlue')">BLUE</button>
+</div>
+
+<p id="status">ONLINE</p>
+
+<script>
+    function send(endpoint) {
+        const status = document.getElementById('status');
+        fetch(endpoint, { method: 'POST' })
+            .then(() => {
+                status.innerText = "OK: " + endpoint.toUpperCase();
+                setTimeout(() => status.innerText = "ONLINE", 1000);
+            })
+            .catch(() => status.innerText = "CONNECTION LOST");
+    }
+</script>
+</body>
+</html>

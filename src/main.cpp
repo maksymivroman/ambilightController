@@ -12,13 +12,16 @@
 #include "core/Http/Http.h"
 #include "core/HTMLPage/html-page.hpp"
 #include "core/HTMLPage/colorPicker-page.hpp"
+#include "core/HTMLPage/arcade.hpp"
 #include "core/OTAUpdate/OTAUpdate.h"
 #include "core/Trigger/Trigger.h"
 #include "core/LEDService/LEDStripService.h"
 #include "core/ID/ID.h"
 #include "core/ButtonHandler/ButtonHandler.h"
 
-Version deviceVersion(1, 0, 1, false);
+#include "core/Arcade/Arcade.h"
+
+Version deviceVersion(1, 1, 0, false);
 const byte pinA1 = 4;
 
 ButtonHandler button(pinA1);
@@ -28,16 +31,18 @@ StartupMode deviceStartupMode = RUN;
 Settings deviceSettings;
 AsyncWebServer server(80);
 NetworkService networkService;
-Trigger RestartTrigger, TestRGB, FadeOutRgbTrigger, AnimateTrigger, ControlButtonState;
+Trigger RestartTrigger, TestRGB, FadeOutRgbTrigger, AnimateTrigger, ControlButtonState, ArcadeTrigger;
 
 OtaUpdate otaUpdate(&RestartTrigger);
 
 Logger logger(115200, 20);
 
 Task restartTask, testRGB, fadeOutRGB, toggleStripTask(true), CheckConnectionTask(true);
-IntervalTask Main, ConnectToWiFiITask, AnimateITask;
+IntervalTask Main, ConnectToWiFiITask, AnimateITask, ArcadeITask;
 
 LEDStripService LEDService;
+
+Arcade ArcadeGame;
 
 void restart() {
     optimistic_yield(1000);
@@ -115,6 +120,8 @@ void setup() {
         LEDService.initColorState(GhostWhite);
         LEDService.setBrightness(255);
     }
+
+    ArcadeGame.setup(&LEDService);
 
     if (deviceSettings.clientWebAccessEnabled() || deviceStartupMode == SETUP) {
         server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -206,6 +213,7 @@ void setup() {
         server.on("/off", HTTP_POST, [](AsyncWebServerRequest *request) {
             ControlButtonState.set();
             AnimateTrigger.reset();
+            ArcadeTrigger.reset();
             LEDService.clear();
             request->send(200, "application/json", Http::statusOk("Test RGB"));
         });
@@ -237,6 +245,34 @@ void setup() {
         server.on("/animate", HTTP_POST, [](AsyncWebServerRequest *request) {
             AnimateTrigger.set();
             request->send(200, "application/json", Http::statusOk("Animate"));
+        });
+
+        server.on("/arcade", HTTP_GET, [](AsyncWebServerRequest *request) {
+            request->send_P(200, "text/html", arcade_html);
+        });
+
+        server.on("/arcadeStart", HTTP_POST, [](AsyncWebServerRequest *request) {
+            ArcadeGame.resetGame();
+            ArcadeTrigger.set();
+            logger.log("[Main] Arcade mode is On");
+            request->send(200, "application/json", Http::statusOk("Game started"));
+        });
+
+        server.on("/arcadeStop", HTTP_POST, [](AsyncWebServerRequest *request) {
+            ArcadeTrigger.reset();
+            ArcadeGame.resetGame();
+            logger.log("[Main] Arcade mode is Off");
+            request->send(200, "application/json", Http::statusOk("Game stopped"));
+        });
+
+        server.on("/hitRed", HTTP_POST, [](AsyncWebServerRequest *request) {
+            ArcadeGame.hit(Red);
+            request->send(200, "application/json", Http::statusOk("HIT!"));
+        });
+
+        server.on("/hitBlue", HTTP_POST, [](AsyncWebServerRequest *request) {
+            ArcadeGame.hit(Blue);
+            request->send(200, "application/json", Http::statusOk("HIT!"));
         });
 
         server.on("/setWhiteColor", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -345,6 +381,10 @@ void loop() {
     AnimateITask(50, []() {
         LEDService.animate(true);
     },!AnimateTrigger.get());
+
+    ArcadeITask(50, []() {
+        ArcadeGame.process();
+    },!ArcadeTrigger.get());
 
     restartTask(RestartTrigger.get(), [](){
         LEDService.fillColor(Red);

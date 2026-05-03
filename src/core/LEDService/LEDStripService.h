@@ -41,11 +41,13 @@ public:
     void testLEDStrip();
     void fadeOut();
     void setColors(LEDState state);
+    void updateColorsWithState(LEDState state);
     void setBrightness(unsigned int brightnessValue);
     void initColorState(LEDState state);
     void initColorState(HTMLColorCode plainColor);
     LEDState fillWhite();
     void fillColor(HTMLColorCode colorCode);
+    void fillStepFromPosition(u_int origin, u_int step, HTMLColorCode colorCode);
     void clear(bool clearState = false);
     void restoreLastState();
     unsigned int getBrightness();
@@ -53,6 +55,10 @@ public:
 
     LEDState currentState() const;
     LEDStripMode getLEDStripMode() const;
+
+    unsigned int getLedCount() const;
+
+    void render();
 private:
     LEDState state;
     CRGB *LEDStrip = nullptr;

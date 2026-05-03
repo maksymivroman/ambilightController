@@ -84,6 +84,12 @@ void LEDStripService::setColors(LEDState state) {
     this->setLEDStripMode(LED_ON);
 }
 
+void LEDStripService::updateColorsWithState(LEDState state) {
+    for(size_t i = 0; i < state.size(); i++) {
+        LEDStrip[i] = state[i];
+    }
+}
+
 void LEDStripService::restoreLastState() {
     logger.log("[LEDStripService] ", "Restore last state");
     for(size_t i = 0; i < this->state.size(); i++) {
@@ -175,4 +181,24 @@ void LEDStripService::setLEDStripMode(LEDStripMode mode) {
             FastLED.show();
             break;
     }
+}
+
+unsigned int LEDStripService::getLedCount() const {
+    return this->ledCount;
+}
+
+void LEDStripService::render() {
+    FastLED.show();
+}
+
+void LEDStripService::fillStepFromPosition(u_int origin, u_int step, HTMLColorCode colorCode) {
+    if (origin + step < this->ledCount) {
+        this->LEDStrip[origin + step] = colorCode;
+    }
+
+    if (origin >= step) {
+        this->LEDStrip[origin - step] = colorCode;
+    }
+
+    FastLED.show();
 }
